@@ -1,0 +1,47 @@
+# Template for Google's MCP Toolbox (googleapis/mcp-toolbox).
+# Copy to tools.yaml and fill in if you wire up the `dbtools` MCP server against this stack.
+# Declares both sources centrally so one server can query either database.
+# Hosts use the docker-compose service names (not localhost) because .mcp.json
+# runs dbtools as a container on the stack-database-mcp_default network.
+
+sources:
+  local-postgres:
+    kind: postgres
+    host: postgres
+    port: 5432
+    database: appdb
+    user: mcp_readonly
+    password: readonly
+
+  local-mysql:
+    kind: mysql
+    host: mysql
+    port: 3306
+    database: appdb
+    user: mcp_readonly
+    password: readonly
+
+tools:
+  query-customers:
+    kind: postgres-sql
+    source: local-postgres
+    description: List customers from the seeded Postgres database.
+    statement: SELECT * FROM customers;
+
+  query-products:
+    kind: mysql-sql
+    source: local-mysql
+    description: List products from the seeded MySQL database.
+    statement: SELECT * FROM products;
+
+  insert-customer:
+    kind: postgres-sql
+    source: local-postgres
+    description: Attempt to insert a customer (expected to fail — read-only role).
+    statement: INSERT INTO customers (name, email) VALUES ('Hacker', 'x@x.com');
+
+  delete-product:
+    kind: mysql-sql
+    source: local-mysql
+    description: Attempt to delete a product (expected to fail — read-only role).
+    statement: DELETE FROM products WHERE id = 1;

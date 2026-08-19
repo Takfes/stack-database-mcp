@@ -1,0 +1,23 @@
+{
+  "mcpServers": {
+    "pgquery": {
+      "command": "docker",
+      "args": [
+        "run", "-i", "--rm",
+        "--network", "stack-database-mcp_default",
+        "-e", "DATABASE_URI=postgresql://mcp_readonly:readonly@postgres:5432/appdb",
+        "crystaldba/postgres-mcp", "--access-mode=restricted", "--transport=stdio"
+      ]
+    },
+    "dbtools": {
+      "command": "docker",
+      "args": [
+        "run", "-i", "--rm",
+        "--network", "stack-database-mcp_default",
+        "-v", "/Users/takis/Documents/sckool/stack-database-mcp/tools.yaml:/tools.yaml:ro",
+        "us-central1-docker.pkg.dev/database-toolbox/toolbox/toolbox:latest",
+        "--stdio", "--config", "/tools.yaml"
+      ]
+    }
+  }
+}
