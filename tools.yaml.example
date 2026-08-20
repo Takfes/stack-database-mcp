@@ -21,6 +21,14 @@ sources:
     user: mcp_readonly
     password: readonly
 
+  local-mssql:
+    kind: mssql
+    host: mssql
+    port: 1433
+    database: appdb
+    user: mcp_readonly
+    password: Readonly123!
+
 tools:
   query-customers:
     kind: postgres-sql

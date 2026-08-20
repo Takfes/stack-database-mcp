@@ -72,6 +72,25 @@ docker compose up -d
 python3 scripts/smoke_test.py
 ```
 
+### MSSQL
+
+The MSSQL container is Microsoft's Express-edition SQL Server image. `ACCEPT_EULA=Y` in `docker-compose.yml` is a real, unavoidable requirement of this image — it will refuse to start without it, not an optional toggle.
+
+```bash
+# as sa
+docker exec stack-database-mcp-mssql-1 /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "Admin123!" -C -d appdb -Q "SELECT * FROM employees;"
+
+# as the read-only login
+docker exec stack-database-mcp-mssql-1 /opt/mssql-tools18/bin/sqlcmd -S localhost -U mcp_readonly -P "Readonly123!" -C -d appdb -Q "SELECT * FROM departments;"
+```
+
+Read-only enforcement, proven the same way as Postgres/MySQL — this should fail:
+
+```bash
+docker exec stack-database-mcp-mssql-1 /opt/mssql-tools18/bin/sqlcmd -S localhost -U mcp_readonly -P "Readonly123!" -C -d appdb \
+  -Q "INSERT INTO employees (name, title) VALUES ('Hacker', 'x');"
+```
+
 ## Credentials
 
 Copy `.env.example` → `.env` and `tools.yaml.example` → `tools.yaml` if pointing a real MCP server at this stack. Both already match what's seeded here — no values to invent. `dbtools` in `.mcp.json` depends on `tools.yaml` existing locally (it's bind-mounted by absolute path); copy it before opening this project in Claude Code.
