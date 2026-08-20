@@ -5,7 +5,8 @@ real MCP protocol (not a raw DB client) against the running stack-database-mcp
 containers. Requires `docker compose up -d` to already be running.
 
 pgquery : proves SELECT works and INSERT is rejected in --access-mode=restricted.
-dbtools : proves one server, one tools.yaml, queries both Postgres and MySQL.
+dbtools : proves one server, one tools.yaml, queries Postgres, MySQL, and MSSQL
+          via both the fixed-statement tools and the ad-hoc/introspection tools.
 """
 import json
 import subprocess
@@ -89,7 +90,11 @@ def main():
     ok &= check("pgquery: SELECT returns seeded rows", "Ada Lovelace" in result_text(select_result))
     ok &= check("pgquery: INSERT is rejected", "error" in result_text(insert_result).lower())
 
-    customers_result, products_result = run_server(
+    (
+        customers_result, products_result,
+        pg_adhoc_result, mysql_adhoc_result, mssql_adhoc_result,
+        pg_tables_result, mysql_tables_result, mssql_tables_result,
+    ) = run_server(
         [
             "-v", f"{ROOT / 'tools.yaml'}:/tools.yaml:ro",
             "us-central1-docker.pkg.dev/database-toolbox/toolbox/toolbox:latest",
@@ -98,10 +103,22 @@ def main():
         [
             ("query-customers", {}),
             ("query-products", {}),
+            ("postgres-execute-sql", {"sql": "SELECT * FROM customers;"}),
+            ("mysql-execute-sql", {"sql": "SELECT * FROM products;"}),
+            ("mssql-execute-sql", {"sql": "SELECT * FROM employees;"}),
+            ("postgres-list-tables", {}),
+            ("mysql-list-tables", {}),
+            ("mssql-list-tables", {}),
         ],
     )
     ok &= check("dbtools: queries Postgres (customers)", "Ada Lovelace" in result_text(customers_result))
     ok &= check("dbtools: queries MySQL (products)", "Widget" in result_text(products_result))
+    ok &= check("dbtools: ad-hoc execute-sql on Postgres", "Ada Lovelace" in result_text(pg_adhoc_result))
+    ok &= check("dbtools: ad-hoc execute-sql on MySQL", "Widget" in result_text(mysql_adhoc_result))
+    ok &= check("dbtools: ad-hoc execute-sql on MSSQL (connectivity)", "Katherine Johnson" in result_text(mssql_adhoc_result))
+    ok &= check("dbtools: schema introspection on Postgres", "customers" in result_text(pg_tables_result))
+    ok &= check("dbtools: schema introspection on MySQL", "products" in result_text(mysql_tables_result))
+    ok &= check("dbtools: schema introspection on MSSQL", "employees" in result_text(mssql_tables_result))
 
     sys.exit(0 if ok else 1)
 
