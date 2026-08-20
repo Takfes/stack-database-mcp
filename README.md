@@ -1,12 +1,27 @@
 # stack-database-mcp
 
-Disposable Postgres + MySQL stack for testing the `pgquery`/`dbtools` MCP servers before they ship in `indie-marketplace`'s `database` plugin. Not for production use — passwords are throwaway defaults, seeded fresh every time.
+Disposable Postgres + MySQL + MSSQL stack for testing the `pgquery`/`dbtools` MCP servers before they ship in `indie-marketplace`'s `database` plugin. Not for production use — passwords are throwaway defaults, seeded fresh every time.
+
+## TL;DR — verify all three databases are reachable through the MCP agent
+
+```bash
+docker compose up -d
+docker ps -a --format '{{.Names}}: {{.Status}}'   # wait until all three show (healthy)
+```
+
+Open this project in **Claude Code** (`.mcp.json` wires up `pgquery` + `dbtools` automatically — nothing else to configure) or **VS Code** (point its MCP config at the same two servers; see Dual-client verification below), then ask the agent to run these through the MCP tools:
+
+- `pgquery` → `SELECT * FROM customers;` — proves Postgres access
+- `dbtools` → `query-products` (or `mysql-execute-sql`) — proves MySQL access
+- `dbtools` → `mssql-execute-sql` with `SELECT * FROM employees;` — proves MSSQL access (MSSQL has no fixed-statement tool yet, ad-hoc is the only path)
+
+All three should return seeded rows (Ada Lovelace, Widget, Katherine Johnson respectively). The sections below cover the same ground in more depth, plus the read-only-enforcement and rejection-path checks.
 
 ## Spin up
 
 ```bash
 docker compose up -d
-docker ps -a --format '{{.Names}}: {{.Status}}'   # wait until both show (healthy)
+docker ps -a --format '{{.Names}}: {{.Status}}'   # wait until all three show (healthy)
 ```
 
 ## Manually verify seed data
@@ -49,7 +64,7 @@ docker exec stack-database-mcp-postgres-1 psql -U mcp_readonly -d appdb \
 - `query-customers` / `query-products` → return the seeded rows from Postgres and MySQL respectively, proving one server can front both engines off a single `tools.yaml`.
 - `insert-customer` / `delete-product` → both rejected with `isError: true` and the underlying DB error surfaced verbatim (`permission denied for table customers` / `DELETE command denied to user 'mcp_readonly'`). Unlike postgres-mcp, dbtools sets `isError` correctly — no quirk to work around here.
 - dbtools has no independent query-validation layer of its own (unlike postgres-mcp's restricted-mode validator) — enforcement here is entirely the `mcp_readonly` grant on each database. That's expected: dbtools' access model is "whatever SQL the tool author hardcoded, against whatever DB user is configured," not a general-purpose SQL gate.
-- `tools.yaml.example` also declares ad-hoc + schema-introspection tools for Postgres and MySQL: `postgres-execute-sql`/`mysql-execute-sql` (run arbitrary SQL, not just the four hardcoded statements above) and `postgres-list-tables`/`postgres-list-schemas`/`mysql-list-tables` (inspect schema without hand-writing SQL). This is a deliberate tradeoff, not an oversight: ad-hoc execute-sql tools are less safe than the fixed statements — they let a caller run any statement the `mcp_readonly` grant permits, rather than only the exact query the tool author wrote — so the same grant-level enforcement (read-only role) is the only thing standing between an ad-hoc call and a destructive one. Use the fixed-statement tools where the query is known ahead of time; reach for the ad-hoc tools only when the caller genuinely needs open-ended SQL.
+- `tools.yaml.example` also declares ad-hoc + schema-introspection tools for all three engines: `postgres-execute-sql`/`mysql-execute-sql`/`mssql-execute-sql` (run arbitrary SQL, not just the four hardcoded statements above) and `postgres-list-tables`/`postgres-list-schemas`/`mysql-list-tables`/`mssql-list-tables` (inspect schema without hand-writing SQL — MSSQL has no `list-schemas` equivalent in `genai-toolbox`, confirmed against source). This is a deliberate tradeoff, not an oversight: ad-hoc execute-sql tools are less safe than the fixed statements — they let a caller run any statement the `mcp_readonly` grant permits, rather than only the exact query the tool author wrote — so the same grant-level enforcement (read-only role) is the only thing standing between an ad-hoc call and a destructive one. Use the fixed-statement tools where the query is known ahead of time; reach for the ad-hoc tools only when the caller genuinely needs open-ended SQL.
 
 ## Dual-client verification
 
