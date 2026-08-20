@@ -53,3 +53,32 @@ tools:
     source: local-mysql
     description: Attempt to delete a product (expected to fail — read-only role).
     statement: DELETE FROM products WHERE id = 1;
+
+  # --- Ad-hoc SQL execution (less safe than the fixed statements above — see README) ---
+
+  postgres-execute-sql:
+    kind: postgres-execute-sql
+    source: local-postgres
+    description: Execute arbitrary ad-hoc SQL against the Postgres database.
+
+  mysql-execute-sql:
+    kind: mysql-execute-sql
+    source: local-mysql
+    description: Execute arbitrary ad-hoc SQL against the MySQL database.
+
+  # --- Schema introspection ---
+
+  postgres-list-tables:
+    kind: postgres-list-tables
+    source: local-postgres
+    description: List tables, columns, and constraints in the Postgres database.
+
+  postgres-list-schemas:
+    kind: postgres-list-schemas
+    source: local-postgres
+    description: List schemas in the Postgres database.
+
+  mysql-list-tables:
+    kind: mysql-list-tables
+    source: local-mysql
+    description: List tables, columns, and indexes in the MySQL database.
