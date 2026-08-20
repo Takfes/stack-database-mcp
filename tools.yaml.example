@@ -66,6 +66,11 @@ tools:
     source: local-mysql
     description: Execute arbitrary ad-hoc SQL against the MySQL database.
 
+  mssql-execute-sql:
+    kind: mssql-execute-sql
+    source: local-mssql
+    description: Execute arbitrary ad-hoc SQL against the MSSQL database.
+
   # --- Schema introspection ---
 
   postgres-list-tables:
@@ -82,3 +87,9 @@ tools:
     kind: mysql-list-tables
     source: local-mysql
     description: List tables, columns, and indexes in the MySQL database.
+
+  mssql-list-tables:
+    kind: mssql-list-tables
+    source: local-mssql
+    description: List tables, columns, and constraints in the MSSQL database.
+    # No mssql-list-schemas equivalent exists in genai-toolbox (unlike postgres) — confirmed against source.
