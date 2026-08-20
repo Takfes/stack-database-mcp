@@ -1,12 +1,27 @@
 # stack-database-mcp
 
-Disposable Postgres + MySQL stack for testing the `pgquery`/`dbtools` MCP servers before they ship in `indie-marketplace`'s `database` plugin. Not for production use — passwords are throwaway defaults, seeded fresh every time.
+Disposable Postgres + MySQL + MSSQL stack for testing the `pgquery`/`dbtools` MCP servers before they ship in `indie-marketplace`'s `database` plugin. Not for production use — passwords are throwaway defaults, seeded fresh every time.
+
+## TL;DR — verify all three databases are reachable through the MCP agent
+
+```bash
+docker compose up -d
+docker ps -a --format '{{.Names}}: {{.Status}}'   # wait until all three show (healthy)
+```
+
+Open this project in **Claude Code** (`.mcp.json` wires up `pgquery` + `dbtools` automatically — nothing else to configure) or **VS Code** (point its MCP config at the same two servers; see Dual-client verification below), then ask the agent to run these through the MCP tools:
+
+- `pgquery` → `SELECT * FROM customers;` — proves Postgres access
+- `dbtools` → `query-products` (or `mysql-execute-sql`) — proves MySQL access
+- `dbtools` → `mssql-execute-sql` with `SELECT * FROM employees;` — proves MSSQL access (MSSQL has no fixed-statement tool yet, ad-hoc is the only path)
+
+All three should return seeded rows (Ada Lovelace, Widget, Katherine Johnson respectively). The sections below cover the same ground in more depth, plus the read-only-enforcement and rejection-path checks.
 
 ## Spin up
 
 ```bash
 docker compose up -d
-docker ps -a --format '{{.Names}}: {{.Status}}'   # wait until both show (healthy)
+docker ps -a --format '{{.Names}}: {{.Status}}'   # wait until all three show (healthy)
 ```
 
 ## Manually verify seed data
