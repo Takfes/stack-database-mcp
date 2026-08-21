@@ -91,7 +91,7 @@ def main():
     ok &= check("pgquery: INSERT is rejected", "error" in result_text(insert_result).lower())
 
     (
-        customers_result, products_result,
+        customers_result, products_result, employees_result,
         pg_adhoc_result, mysql_adhoc_result, mssql_adhoc_result,
         pg_tables_result, mysql_tables_result, mssql_tables_result,
     ) = run_server(
@@ -104,6 +104,7 @@ def main():
         [
             ("query-customers", {}),
             ("query-products", {}),
+            ("query-employees", {}),
             ("postgres-execute-sql", {"sql": "SELECT * FROM customers;"}),
             ("mysql-execute-sql", {"sql": "SELECT * FROM products;"}),
             ("mssql-execute-sql", {"sql": "SELECT * FROM employees;"}),
@@ -114,12 +115,33 @@ def main():
     )
     ok &= check("dbtools: queries Postgres (customers)", "Ada Lovelace" in result_text(customers_result))
     ok &= check("dbtools: queries MySQL (products)", "Widget" in result_text(products_result))
+    ok &= check("dbtools: queries MSSQL (employees)", "Katherine Johnson" in result_text(employees_result))
     ok &= check("dbtools: ad-hoc execute-sql on Postgres", "Ada Lovelace" in result_text(pg_adhoc_result))
     ok &= check("dbtools: ad-hoc execute-sql on MySQL", "Widget" in result_text(mysql_adhoc_result))
     ok &= check("dbtools: ad-hoc execute-sql on MSSQL (connectivity)", "Katherine Johnson" in result_text(mssql_adhoc_result))
     ok &= check("dbtools: schema introspection on Postgres", "customers" in result_text(pg_tables_result))
     ok &= check("dbtools: schema introspection on MySQL", "products" in result_text(mysql_tables_result))
     ok &= check("dbtools: schema introspection on MSSQL", "employees" in result_text(mssql_tables_result))
+
+    mysql_select_result, mysql_insert_result = run_server(
+        ["--env-file", f"{ROOT / '.env'}", "stack-database-mcp-mysql-mcp:local"],
+        [
+            ("mysql_query", {"sql": "SELECT * FROM products;"}),
+            ("mysql_query", {"sql": "INSERT INTO products (name) VALUES ('x');"}),
+        ],
+    )
+    ok &= check("mysql-mcp: SELECT returns seeded rows", "Widget" in result_text(mysql_select_result))
+    ok &= check("mysql-mcp: INSERT is rejected", "error" in result_text(mysql_insert_result).lower())
+
+    mssql_select_result, mssql_insert_result = run_server(
+        ["--env-file", f"{ROOT / '.env'}", "stack-database-mcp-mssql-mcp:local"],
+        [
+            ("query_sql", {"query": "SELECT * FROM employees;"}),
+            ("query_sql", {"query": "INSERT INTO employees (name, title) VALUES ('x', 'x');"}),
+        ],
+    )
+    ok &= check("mssql-mcp: query_sql SELECT returns seeded rows", "Katherine Johnson" in result_text(mssql_select_result))
+    ok &= check("mssql-mcp: query_sql rejects non-SELECT", "error" in result_text(mssql_insert_result).lower())
 
     sys.exit(0 if ok else 1)
 

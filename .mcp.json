@@ -19,6 +19,24 @@
         "us-central1-docker.pkg.dev/database-toolbox/toolbox/toolbox:latest",
         "--stdio", "--config", "/tools.yaml"
       ]
+    },
+    "mysql-mcp": {
+      "command": "docker",
+      "args": [
+        "run", "-i", "--rm",
+        "--network", "stack-database-mcp_default",
+        "--env-file", "/Users/takis/Documents/sckool/stack-database-mcp/.env",
+        "stack-database-mcp-mysql-mcp:local"
+      ]
+    },
+    "mssql-mcp": {
+      "command": "docker",
+      "args": [
+        "run", "-i", "--rm",
+        "--network", "stack-database-mcp_default",
+        "--env-file", "/Users/takis/Documents/sckool/stack-database-mcp/.env",
+        "stack-database-mcp-mssql-mcp:local"
+      ]
     }
   }
 }
