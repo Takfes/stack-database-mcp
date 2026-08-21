@@ -110,7 +110,7 @@ docker compose up -d
 python3 scripts/smoke_test.py
 ```
 
-3 tiers, 25 checks, all `[PASS]`:
+3 tiers, 27 checks, all `[PASS]`:
 
 - **Tier 1** — Docker healthcheck per DB, no MCP.
 - **Tier 2** — raw SQL per engine (no MCP) + every MCP tool call above.

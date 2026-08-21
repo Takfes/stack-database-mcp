@@ -99,3 +99,15 @@ tools:
     source: local-mssql
     description: List tables, columns, and constraints in the MSSQL database.
     # No mssql-list-schemas equivalent exists in genai-toolbox (unlike postgres) — confirmed against source.
+
+  # --- Query analysis (MySQL-only — genai-toolbox ships no equivalents for postgres/mssql) ---
+
+  mysql-get-query-plan:
+    kind: mysql-get-query-plan
+    source: local-mysql
+    description: EXPLAIN a supplied SQL statement against the MySQL database.
+
+  mysql-list-tables-missing-unique-indexes:
+    kind: mysql-list-tables-missing-unique-indexes
+    source: local-mysql
+    description: List MySQL tables with no primary key or unique index.
