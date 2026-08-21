@@ -24,6 +24,22 @@ docker compose up -d
 docker ps -a --format '{{.Names}}: {{.Status}}'   # wait until all three show (healthy)
 ```
 
+`mysql-mcp` and `mssql-mcp` (the dedicated per-flavor MCP servers in `.mcp.json`) have no published image — build them locally once, from each upstream's own Dockerfile:
+
+```bash
+docker build -t stack-database-mcp-mysql-mcp:local https://github.com/benborla/mcp-server-mysql.git
+```
+
+`mssql_mcp_server`'s upstream Dockerfile has a bug — it never copies `README.md` into the build context, but `pyproject.toml`'s build backend requires it, so the image fails to build as-is. Build from a locally patched copy (adds one `COPY README.md .` line):
+
+```bash
+git clone --depth 1 https://github.com/JexinSam/mssql_mcp_server.git /tmp/mssql_mcp_server
+sed -i '' '/COPY pyproject.toml \./a\
+COPY README.md .
+' /tmp/mssql_mcp_server/Dockerfile
+docker build -t stack-database-mcp-mssql-mcp:local /tmp/mssql_mcp_server
+```
+
 ## Manually verify seed data
 
 ```bash
