@@ -154,6 +154,7 @@ def tier2_mcp_protocol():
         customers_result, products_result, employees_result,
         pg_adhoc_result, mysql_adhoc_result, mssql_adhoc_result,
         pg_tables_result, mysql_tables_result, mssql_tables_result,
+        mysql_query_plan_result, mysql_missing_idx_result,
     ) = run_server(
         [
             "--env-file", f"{ROOT / '.env'}",
@@ -171,6 +172,8 @@ def tier2_mcp_protocol():
             ("postgres-list-tables", {}),
             ("mysql-list-tables", {}),
             ("mssql-list-tables", {}),
+            ("mysql-get-query-plan", {"sql_statement": "SELECT * FROM products;"}),
+            ("mysql-list-tables-missing-unique-indexes", {}),
         ],
     )
     ok &= check("dbtools: queries Postgres (customers)", "Ada Lovelace" in result_text(customers_result))
@@ -182,6 +185,11 @@ def tier2_mcp_protocol():
     ok &= check("dbtools: schema introspection on Postgres", "customers" in result_text(pg_tables_result))
     ok &= check("dbtools: schema introspection on MySQL", "products" in result_text(mysql_tables_result))
     ok &= check("dbtools: schema introspection on MSSQL", "employees" in result_text(mssql_tables_result))
+    ok &= check("dbtools: mysql-get-query-plan explains a statement", "products" in result_text(mysql_query_plan_result).lower())
+    ok &= check(
+        "dbtools: mysql-list-tables-missing-unique-indexes runs clean (seeded tables are all keyed)",
+        "error" not in result_text(mysql_missing_idx_result).lower(),
+    )
 
     mysql_select_result, mysql_insert_result = run_server(
         ["--env-file", f"{ROOT / '.env'}", "stack-database-mcp-mysql-mcp:local"],
