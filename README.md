@@ -1,6 +1,6 @@
 # stack-database-mcp
 
-Disposable Postgres + MySQL + MSSQL stack for testing the `pgquery`/`dbtools` MCP servers before they ship in `indie-marketplace`'s `database` plugin. Not for production use — passwords are throwaway defaults, seeded fresh every time.
+Disposable Postgres + MySQL + MSSQL stack for testing MCP database servers before they ship in `indie-marketplace`'s `database` plugin. Not for production use — passwords are throwaway defaults, seeded fresh every time.
 
 ## TL;DR — verify all three databases are reachable through the MCP agent
 
@@ -9,13 +9,29 @@ docker compose up -d
 docker ps -a --format '{{.Names}}: {{.Status}}'   # wait until all three show (healthy)
 ```
 
-Open this project in **Claude Code** (`.mcp.json` wires up `pgquery` + `dbtools` automatically — nothing else to configure) or **VS Code** (point its MCP config at the same two servers; see Dual-client verification below), then ask the agent to run these through the MCP tools:
+Open this project in **Claude Code** or **VS Code** — five MCP servers are pre-wired, nothing else to configure:
 
-- `pgquery` → `SELECT * FROM customers;` — proves Postgres access
-- `dbtools` → `query-products` (or `mysql-execute-sql`) — proves MySQL access
-- `dbtools` → `mssql-execute-sql` with `SELECT * FROM employees;` — proves MSSQL access (MSSQL has no fixed-statement tool yet, ad-hoc is the only path)
+| Server | Engine(s) | Covers |
+|---|---|---|
+| `pgquery` | Postgres | dedicated, second independent SQL-validator layer |
+| `dbtools` | Postgres, MySQL, MSSQL | one generic server, all three engines |
+| `mysql-mcp` | MySQL | dedicated, app-level write gate |
+| `mssql-mcp` | MSSQL | dedicated, regex-gated read-only tool |
 
-All three should return seeded rows (Ada Lovelace, Widget, Katherine Johnson respectively). The sections below cover the same ground in more depth, plus the read-only-enforcement and rejection-path checks.
+Ask the agent to run each of these through its MCP tools — all should return seeded rows (Ada Lovelace, Widget, Katherine Johnson):
+
+- `pgquery` → `SELECT * FROM customers;`
+- `dbtools` → `query-products` (MySQL) or `query-employees` (MSSQL)
+- `mysql-mcp` → `mysql_query` with `SELECT * FROM products;`
+- `mssql-mcp` → `query_sql` with `SELECT * FROM employees;`
+
+Then tear down:
+
+```bash
+docker compose down
+```
+
+The sections below cover the same ground in more depth, plus read-only-enforcement and rejection-path checks.
 
 ## Spin up
 
@@ -51,84 +67,105 @@ docker exec stack-database-mcp-postgres-1 psql -U mcp_readonly -d appdb -c "SELE
 
 # MySQL
 docker exec stack-database-mcp-mysql-1 mysql -uroot -padmin appdb -e "SELECT * FROM products; SELECT * FROM inventory;"
+
+# MSSQL — ACCEPT_EULA=Y in docker-compose.yml is a real, unavoidable requirement of
+# Microsoft's Express-edition image, not an optional toggle.
+docker exec stack-database-mcp-mssql-1 /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "Admin123!" -C -d appdb -Q "SELECT * FROM employees;"
+docker exec stack-database-mcp-mssql-1 /opt/mssql-tools18/bin/sqlcmd -S localhost -U mcp_readonly -P "Readonly123!" -C -d appdb -Q "SELECT * FROM departments;"
 ```
 
 ## Manually verify read-only enforcement
 
-Both should fail with `permission denied` — proving read-only is enforced at the database grant, not just trusted to an MCP server's own flag:
+These should all fail — proving read-only is enforced at the database grant, not just trusted to an MCP server's own flag:
 
 ```bash
+# Postgres
 docker exec stack-database-mcp-postgres-1 psql -U mcp_readonly -d appdb \
   -c "INSERT INTO customers (name, email) VALUES ('Hacker', 'x@x.com');"
-
 docker exec stack-database-mcp-postgres-1 psql -U mcp_readonly -d appdb \
   -c "DELETE FROM customers WHERE id = 1;"
+
+# MSSQL
+docker exec stack-database-mcp-mssql-1 /opt/mssql-tools18/bin/sqlcmd -S localhost -U mcp_readonly -P "Readonly123!" -C -d appdb \
+  -Q "INSERT INTO employees (name, title) VALUES ('Hacker', 'x');"
 ```
 
 ## Manually verify through the actual MCP server (not just the raw database)
 
-`.mcp.json` wires up `pgquery` (`crystaldba/postgres-mcp`, Docker, `--access-mode=restricted`) connected as `mcp_readonly` — open this project in Claude Code and it's live. Confirmed working end-to-end via a direct protocol test (init → `tools/list` → `tools/call execute_sql`):
+Every server below connects as `mcp_readonly`. Confirmed working end-to-end via a direct protocol test (init → `tools/list` → `tools/call`), and covered by `scripts/smoke_test.py`'s Tier 2b.
 
-- `SELECT * FROM customers;` → returns the seeded rows.
-- `INSERT ...` / `DELETE ...` → both rejected with `Error validating query: ...` — note this is a **second, independent layer**: postgres-mcp's own restricted-mode SQL validator refuses the write before it ever reaches Postgres, on top of (not instead of) the `mcp_readonly` role's grant-level enforcement proven above.
-- One quirk worth knowing: postgres-mcp reports these validation failures as a normal successful tool result (`isError: false`) with the error text embedded in the content — a caller that only checks the `isError` flag will miss the failure, it has to read the text.
+**`pgquery`** (`crystaldba/postgres-mcp`, dedicated Postgres, `--access-mode=restricted`):
 
-`uvx postgres-mcp` currently fails locally with `ModuleNotFoundError: No module named 'mcp.server.fastmcp'` (a real dependency-resolution issue in the package, not a local cache problem — confirmed via `uvx --refresh`). Use the Docker command above until that's fixed upstream. There's no `npm`/`npx` install path either — it's a Python-only package, so Docker is currently the *only* working way to run it. Tracked as a risk for the eventual `database` plugin in `NEXTME.md`.
+1. `SELECT * FROM customers;` → returns the seeded rows.
+2. `INSERT ...` / `DELETE ...` → both rejected with `Error validating query: ...` — a **second, independent layer**: postgres-mcp's own restricted-mode validator refuses the write before it reaches Postgres, on top of (not instead of) the `mcp_readonly` grant proven above.
+3. Quirk: postgres-mcp reports these validation failures as a normal successful tool result (`isError: false`) with the error text embedded in the content — a caller that only checks `isError` will miss the failure.
 
-`.mcp.json` also wires up `dbtools` (`googleapis/genai-toolbox`, Docker, driven by `tools.yaml`) with four fixed tools: `query-customers`/`query-products` (read) and `insert-customer`/`delete-product` (expected to fail). Requires `tools.yaml` to exist locally first — see Credentials below. Confirmed working end-to-end via the same direct protocol test:
+`uvx postgres-mcp` currently fails locally (`ModuleNotFoundError: No module named 'mcp.server.fastmcp'`, confirmed real upstream bug) and there's no `npm`/`npx` path either — Docker is the only working way to run it. Tracked in `NEXTME.md`.
 
-- `query-customers` / `query-products` → return the seeded rows from Postgres and MySQL respectively, proving one server can front both engines off a single `tools.yaml`.
-- `insert-customer` / `delete-product` → both rejected with `isError: true` and the underlying DB error surfaced verbatim (`permission denied for table customers` / `DELETE command denied to user 'mcp_readonly'`). Unlike postgres-mcp, dbtools sets `isError` correctly — no quirk to work around here.
-- dbtools has no independent query-validation layer of its own (unlike postgres-mcp's restricted-mode validator) — enforcement here is entirely the `mcp_readonly` grant on each database. That's expected: dbtools' access model is "whatever SQL the tool author hardcoded, against whatever DB user is configured," not a general-purpose SQL gate.
-- `tools.yaml` also declares ad-hoc + schema-introspection tools for all three engines: `postgres-execute-sql`/`mysql-execute-sql`/`mssql-execute-sql` (run arbitrary SQL, not just the four hardcoded statements above) and `postgres-list-tables`/`postgres-list-schemas`/`mysql-list-tables`/`mssql-list-tables` (inspect schema without hand-writing SQL — MSSQL has no `list-schemas` equivalent in `genai-toolbox`, confirmed against source). This is a deliberate tradeoff, not an oversight: ad-hoc execute-sql tools are less safe than the fixed statements — they let a caller run any statement the `mcp_readonly` grant permits, rather than only the exact query the tool author wrote — so the same grant-level enforcement (read-only role) is the only thing standing between an ad-hoc call and a destructive one. Use the fixed-statement tools where the query is known ahead of time; reach for the ad-hoc tools only when the caller genuinely needs open-ended SQL.
+**`dbtools`** (`googleapis/genai-toolbox`, generic, driven by `tools.yaml`) — one server fronting all three engines:
+
+1. Fixed tools: `query-customers` (Postgres), `query-products` (MySQL), `query-employees` (MSSQL) → each returns seeded rows. `insert-customer` / `delete-product` → both rejected, `isError: true`, underlying DB error surfaced verbatim.
+2. Ad-hoc tools (`postgres-execute-sql` / `mysql-execute-sql` / `mssql-execute-sql`) and introspection tools (`postgres-list-tables` / `postgres-list-schemas` / `mysql-list-tables` / `mssql-list-tables` — no `mssql-list-schemas` equivalent exists in `genai-toolbox`) → all confirmed working per engine.
+3. dbtools has **no independent query-validation layer** of its own (unlike `pgquery`'s restricted-mode validator) — enforcement is entirely the `mcp_readonly` grant. Ad-hoc tools are a deliberate tradeoff: they let a caller run any statement the grant permits, not just a hardcoded query — use the fixed-statement tools where the query is known ahead of time.
+
+**`mysql-mcp`** (`benborla/mcp-server-mysql`, dedicated MySQL, single `mysql_query` tool):
+
+1. `SELECT * FROM products;` → returns the seeded rows.
+2. `INSERT ...` → rejected. **Second independent layer**: write operations are gated by env flags (`ALLOW_INSERT_OPERATION` etc.), explicitly left `false` in `.env` — note the locally-built image's own Dockerfile bakes these to `true` by default, so this override is load-bearing, not redundant.
+
+**`mssql-mcp`** (`JexinSam/mssql_mcp_server`, dedicated MSSQL, `query_sql` + `execute_sql` tools):
+
+1. `query_sql` with `SELECT * FROM employees;` → returns the seeded rows.
+2. `query_sql` with an INSERT → rejected before it reaches the DB. **Second independent layer**: `query_sql` regex-gates to `SELECT`/`WITH`/`SHOW` only (verified against source, not just docs).
+3. `execute_sql` is exposed separately, unrestricted, per the server's own design — not gated further by this stack.
 
 ## Dual-client verification
 
-**Claude Code** — confirmed working through a real `claude` CLI session (not just the protocol probes above), pointed at this project's own `.mcp.json`:
+**Claude Code** — confirmed working through real `claude -p` CLI sessions (not just the protocol probes above), pointed at this project's own `.mcp.json`, scoped per-server via `--allowedTools mcp__<server>`:
 
 ```bash
 docker compose up -d
-claude -p "Using the pgquery MCP tool, SELECT * FROM customers, then try an INSERT and report what happened."
+claude -p "Using the pgquery MCP tool, SELECT * FROM customers, then try an INSERT and report what happened." --allowedTools mcp__pgquery
 ```
 
-Returned the three seeded customers, then a rejected INSERT (`Error validating query: ...`). Same session, `dbtools`' `query-products`/`query-customers` tools also confirmed working, returning correct rows from both MySQL and Postgres through one server. One thing worth knowing: `claude -p` (one-shot mode) left the MCP servers' Docker containers running after the CLI process exited each time, rather than cleaning them up — not a correctness problem, but if you drive this project the same way, `docker ps` and `docker rm -f` afterward.
+All four servers confirmed working this way — see `scripts/smoke_test.py`'s Tier 3 for the automated version (one plain-English question per server, run live). One thing worth knowing: `claude -p` (one-shot mode) left the MCP servers' Docker containers running after the CLI process exited, rather than cleaning them up — not a correctness problem, but `docker ps` / `docker rm -f` afterward if you drive this project the same way.
 
-**VS Code** — not verified. Driving VS Code's MCP integration needs either a human at the keyboard or VS Code-specific automation this environment doesn't have; the `vscode-mcp.json` files this marketplace generates haven't been exercised against a live VS Code session yet. If you want this closed out, run VS Code by hand against this stack's generated `vscode-mcp.json` and confirm the same query works.
+**VS Code** — two separate integration paths, both wired up in this repo:
+
+- **Agent Host** reads root `.mcp.json` directly — confirmed empirically (disabling `.mcp.json` disabled VS Code's available servers too). Works with zero extra config.
+- **Classic Copilot Chat "Agent Mode"** panel reads `.vscode/mcp.json` specifically (root key `servers`, not `mcpServers`) — added as a backward-compatible safety net, mirroring `.mcp.json`'s servers exactly.
+
+Actually driving a query through either VS Code path still needs a human at the keyboard (no VS Code automation available in this environment) — not verified end-to-end. If you want this closed out, open this project in VS Code and confirm the same queries from the TL;DR work.
 
 ## Smoke test
 
-`scripts/smoke_test.py` automates the manual MCP-protocol checks above — SELECT/INSERT through `pgquery`, and one `dbtools` query against each database. Requires the stack to be up and `tools.yaml` to exist locally (see Credentials below):
+`scripts/smoke_test.py` is a 3-tier check, run against the live stack:
+
+1. **DB health** — each container's own Docker healthcheck, no MCP involved.
+2. **Direct SQL sanity + MCP protocol-level** — one raw SQL statement per engine via the DB's own CLI client (no MCP), plus every deterministic, hand-picked MCP tool call documented above.
+3. **Agent-driven natural-language query** — a live `claude -p` session per server, asked a plain-English question, asserting on the final answer. Proves the agent can translate text → SQL → tool call → answer, not just that a server responds when told exactly which tool to call. Needs `claude` installed and authenticated; set `SMOKE_TEST_SKIP_AGENT=1` to skip it for a faster routine run.
 
 ```bash
 docker compose up -d
 python3 scripts/smoke_test.py
 ```
 
-### MSSQL
+Expected output (21 checks, all `[PASS]`):
 
-The MSSQL container is Microsoft's Express-edition SQL Server image. `ACCEPT_EULA=Y` in `docker-compose.yml` is a real, unavoidable requirement of this image — it will refuse to start without it, not an optional toggle.
-
-```bash
-# as sa
-docker exec stack-database-mcp-mssql-1 /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "Admin123!" -C -d appdb -Q "SELECT * FROM employees;"
-
-# as the read-only login
-docker exec stack-database-mcp-mssql-1 /opt/mssql-tools18/bin/sqlcmd -S localhost -U mcp_readonly -P "Readonly123!" -C -d appdb -Q "SELECT * FROM departments;"
 ```
-
-Read-only enforcement, proven the same way as Postgres/MySQL — this should fail:
-
-```bash
-docker exec stack-database-mcp-mssql-1 /opt/mssql-tools18/bin/sqlcmd -S localhost -U mcp_readonly -P "Readonly123!" -C -d appdb \
-  -Q "INSERT INTO employees (name, title) VALUES ('Hacker', 'x');"
+=== Tier 1: DB health (Docker healthcheck, no MCP) ===
+[PASS] postgres container healthy
+...
+=== Tier 3: Agent-driven natural-language query (live `claude` session) ===
+[PASS] mssql-mcp: agent answers a plain-English employee question
 ```
 
 ## Credentials
 
 `.env` is the single source of truth for every MCP server's credentials — no other file to check or keep in sync.
 
-- `.mcp.json`'s `pgquery` and `dbtools` entries both pass `--env-file .env` to `docker run`, so Docker injects `.env`'s variables straight into each container.
-- `pgquery` reads `DATABASE_URI` from its container's environment directly.
+- `.mcp.json`'s Docker-based entries all pass `--env-file .env` to `docker run`, so Docker injects `.env`'s variables straight into each container.
+- `pgquery` reads `DATABASE_URI` directly; `mysql-mcp` and `mssql-mcp` read their own upstream-defined var names (`MYSQL_*`, `MSSQL_*`).
 - `dbtools` reads `tools.yaml`, where each source's `user`/`password` are `${VAR}` placeholders — `genai-toolbox` resolves these from its own environment natively.
 - `tools.yaml` is a real, tracked file (no `.example` copy step) — it's already correct as checked in.
 - All values here are throwaway, seeded fresh on every `docker compose up` (this is a disposable POC stack) — nothing to invent or protect.
