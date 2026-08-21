@@ -9,12 +9,13 @@ guessed — see sources.
 Free-form SQL generation against an undecorated schema is a weak pattern at any real
 complexity:
 
-- Spider 2.0 (the current enterprise text-to-SQL benchmark) shows a top code-agent solving
-  only **21.3%** of real enterprise tasks — down from 91.2% on the simpler, older Spider 1.0
-  ([SchemaGraphSQL, arxiv.org/pdf/2505.18363](https://arxiv.org/pdf/2505.18363)).
-- dbt's internal comparison: **~40%** accuracy for an LLM writing raw SQL against undecorated
-  tables vs. **83%** for the same LLM querying a governed semantic layer instead
-  ([dbt Labs](https://www.getdbt.com/blog/open-source-metricflow-governed-metrics)).
+- Spider 2.0 (the current enterprise text-to-SQL benchmark) is dramatically harder than its
+  predecessor: GPT-4o scores **86.6%** on Spider 1.0 but only **10.1%** on Spider 2.0
+  ([Spider 2.0 leaderboard](https://spider2-sql.github.io/)).
+- A dbt-cited study: GPT-4 zero-shot raw SQL against enterprise databases scored **16.7%**
+  accuracy; adding a knowledge-graph/semantic layer raised that to **54.2%**; dbt's own
+  Semantic Layer measured **83%** on a subset of aggregation questions without heavy joins
+  ([dbt Labs](https://www.getdbt.com/blog/semantic-layer-as-the-data-interface-for-llms)).
 - The practical failure mode differs, not just the accuracy: *"with text-to-SQL, failure looks
   like a plausible but incorrect answer; with a semantic layer, failure looks like an error
   message"* ([Atlan](https://atlan.com/know/ai-agent/data-for-ai/text-to-sql-for-enterprise/)).
@@ -66,7 +67,7 @@ feeling limiting.
 For whatever still goes through ad-hoc generation: generate → execute → on error, feed the
 error message back to the model → retry, bounded iterations. This is the mechanism behind
 DIN-SQL (55.9% execution accuracy on BIRD) and newer work like LitE-SQL
-([DIN-SQL](https://openreview.net/pdf?id=p53QDxSIc5),
+([DIN-SQL](https://arxiv.org/abs/2304.11015),
 [LitE-SQL](https://arxiv.org/html/2510.09014v1)). `dbtools`' ad-hoc tools already return the
 underlying DB error verbatim on failure — the raw material for this loop is present; the
 retry loop itself is a client-side (agent) behavior, not something this stack needs to build.
