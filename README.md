@@ -86,7 +86,7 @@ All servers connect as `mcp_readonly`. Verified via direct protocol test + `scri
   `delete-product` rejected (`isError: true`). Ad-hoc (`*-execute-sql`) and introspection
   (`*-list-tables`, `postgres-list-schemas`) confirmed per engine — no `mssql-list-schemas`
   equivalent exists upstream. No independent validator of its own; enforcement is the DB grant
-  only. See `docs/query-patterns.md` for extra tool kinds available but unwired.
+  only.
 - **`mysql-mcp`** (`benborla/mcp-server-mysql`, `mysql_query`) — SELECT works; INSERT rejected
   via `ALLOW_*_OPERATION` env flags (set `false` in `.env` — the image's own Dockerfile
   defaults them `true`, so this override is load-bearing).

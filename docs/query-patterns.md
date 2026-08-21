@@ -24,22 +24,6 @@ fixed statements already in `tools.yaml`.
 2. Add a new fixed statement to `tools.yaml` (a genuinely new question shape).
 3. Ad-hoc SQL (`*-execute-sql`), scoped to the DB grant — fallback, not default.
 
-## dbtools — extra tool kinds not yet wired
-
-`tools.yaml` wires 3 kinds per engine (`*-sql`, `*-execute-sql`, `*-list-tables`) plus
-`postgres-list-schemas`. `genai-toolbox` ships more.
-
-**MySQL** — 10 kinds total, 7 unused:
-
-| Kind | Adds | Useful here? |
-|---|---|---|
-| `mysql-get-query-plan` | EXPLAIN | Yes |
-| `mysql-list-tables-missing-unique-indexes` | schema validation | Yes |
-| `mysql-list-active-queries`, `mysql-list-all-locks`, `mysql-list-table-fragmentation`, `mysql-list-table-stats`, `mysql-show-query-stats` | traffic/workload stats | No — needs real traffic history this toy DB doesn't have |
-
-**MSSQL** — 3 kinds total, all 3 already wired. No more exist in `genai-toolbox` for MSSQL — a
-real, structural gap vs. MySQL/Postgres, not a config gap on our side.
-
 ## Guardrails
 
 - Read-only DB role as the floor, always.
