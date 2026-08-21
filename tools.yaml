@@ -1,8 +1,8 @@
-# Template for Google's MCP Toolbox (googleapis/mcp-toolbox).
-# Copy to tools.yaml and fill in if you wire up the `dbtools` MCP server against this stack.
-# Declares both sources centrally so one server can query either database.
-# Hosts use the docker-compose service names (not localhost) because .mcp.json
-# runs dbtools as a container on the stack-database-mcp_default network.
+# Config for Google's MCP Toolbox (googleapis/mcp-toolbox), wired up by the `dbtools`
+# entry in `.mcp.json`. Declares all three sources centrally so one server can query any
+# of them. Hosts use the docker-compose service names (not localhost) because `.mcp.json`
+# runs dbtools as a container on the stack-database-mcp_default network. Credentials come
+# from `.env` via `.mcp.json`'s `--env-file` flag — genai-toolbox resolves ${VAR} natively.
 
 sources:
   local-postgres:
@@ -10,24 +10,24 @@ sources:
     host: postgres
     port: 5432
     database: appdb
-    user: mcp_readonly
-    password: readonly
+    user: ${POSTGRES_READONLY_USER}
+    password: ${POSTGRES_READONLY_PASSWORD}
 
   local-mysql:
     kind: mysql
     host: mysql
     port: 3306
     database: appdb
-    user: mcp_readonly
-    password: readonly
+    user: ${MYSQL_READONLY_USER}
+    password: ${MYSQL_READONLY_PASSWORD}
 
   local-mssql:
     kind: mssql
     host: mssql
     port: 1433
     database: appdb
-    user: mcp_readonly
-    password: Readonly123!
+    user: ${MSSQL_READONLY_USER}
+    password: ${MSSQL_READONLY_PASSWORD}
 
 tools:
   query-customers:

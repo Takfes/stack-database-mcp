@@ -79,7 +79,7 @@ def main():
 
     select_result, insert_result = run_server(
         [
-            "-e", "DATABASE_URI=postgresql://mcp_readonly:readonly@postgres:5432/appdb",
+            "--env-file", f"{ROOT / '.env'}",
             "crystaldba/postgres-mcp", "--access-mode=restricted", "--transport=stdio",
         ],
         [
@@ -96,6 +96,7 @@ def main():
         pg_tables_result, mysql_tables_result, mssql_tables_result,
     ) = run_server(
         [
+            "--env-file", f"{ROOT / '.env'}",
             "-v", f"{ROOT / 'tools.yaml'}:/tools.yaml:ro",
             "us-central1-docker.pkg.dev/database-toolbox/toolbox/toolbox:latest",
             "--stdio", "--config", "/tools.yaml",
