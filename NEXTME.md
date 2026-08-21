@@ -12,7 +12,7 @@ Backlog items surfaced while building and verifying this stack. Not blocking —
 
 ## mysql-mcp / mssql-mcp have no published image
 
-- Neither `benborla/mcp-server-mysql` nor `JexinSam/mssql_mcp_server` publishes a Docker image — built locally by hand, not reproduced by `docker compose up`.
+- Neither `benborla/mcp-server-mysql` nor `JexinSam/mssql_mcp_server` publishes a Docker image — built locally, from this repo's vendored, pinned Dockerfiles (`docker/mysql-mcp`, `docker/mssql-mcp`), not reproduced by `docker compose up`.
 - `benborla`'s Dockerfile bakes in `ALLOW_INSERT_OPERATION=true`/`ALLOW_UPDATE_OPERATION=true` by default, contrary to its own README — overridden in `.env`, verified live.
-- `JexinSam`'s Dockerfile never copies `README.md` into the build context, but the hatchling backend requires it — built from a locally patched clone (`COPY README.md .` added) instead.
-- Revisit if either project publishes a real image or fixes these upstream.
+- `JexinSam`'s Dockerfile never copies `README.md` into the build context, but the hatchling backend requires it — vendored copy adds a real `COPY README.md .` step instead of a runtime patch.
+- Revisit if either project publishes a real image — the pinned commits could then be bumped or the vendored Dockerfiles retired.

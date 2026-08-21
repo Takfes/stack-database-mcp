@@ -10,25 +10,17 @@ docker compose up -d
 docker ps -a --format '{{.Names}}: {{.Status}}'   # wait for all three "(healthy)"
 ```
 
-`mysql-mcp`/`mssql-mcp` have no published image — build once locally:
+`mysql-mcp`/`mssql-mcp` have no published image — build once locally from this repo's own
+vendored, pinned Dockerfiles (`docker/mysql-mcp`, `docker/mssql-mcp` — see those files for the
+pinned commit and why they're vendored rather than built straight from upstream):
 
 ```bash
-docker build -t stack-database-mcp-mysql-mcp:local https://github.com/benborla/mcp-server-mysql.git
+docker build -t stack-database-mcp-mysql-mcp:local docker/mysql-mcp
+docker build -t stack-database-mcp-mssql-mcp:local docker/mssql-mcp
 ```
 
-```bash
-git clone --depth 1 https://github.com/JexinSam/mssql_mcp_server.git /tmp/mssql_mcp_server
-sed -i '' '/COPY pyproject.toml \./a\
-COPY README.md .
-' /tmp/mssql_mcp_server/Dockerfile
-docker build -t stack-database-mcp-mssql-mcp:local /tmp/mssql_mcp_server
-```
-
-- MSSQL boots slowest of the three. `dbtools` connects to all 3 DBs at startup with **no
-  retry** — if it fails, wait until all containers show `healthy`, then reconnect the MCP
-  server.
-- JexinSam's upstream Dockerfile is missing `COPY README.md .` (its build backend needs it) —
-  patched above.
+MSSQL boots slowest of the three. `dbtools` connects to all 3 DBs at startup with **no
+retry** — if it fails, wait until all containers show `healthy`, then reconnect the MCP server.
 
 Open in **Claude Code** or **VS Code** — 4 servers pre-wired, nothing else to configure:
 

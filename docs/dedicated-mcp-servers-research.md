@@ -50,8 +50,8 @@ until now.
 
 **Known upstream bug, worked around**: the Dockerfile never copies `README.md` into the
 build context, but `pyproject.toml`'s hatchling backend requires it at build time — `pip
-install .` fails on a stock clone. Built from a locally patched copy instead (see README's
-"Spin up" section). Tracked in `NEXTME.md`.
+install .` fails on a stock clone. Fixed in this repo's vendored, pinned copy
+(`docker/mssql-mcp/Dockerfile`) with a real `COPY README.md .` step. Tracked in `NEXTME.md`.
 
 ## Method
 
