@@ -1,0 +1,42 @@
+{
+  "servers": {
+    "pgquery": {
+      "command": "docker",
+      "args": [
+        "run", "-i", "--rm",
+        "--network", "stack-database-mcp_default",
+        "--env-file", "/Users/takis/Documents/sckool/stack-database-mcp/.env",
+        "crystaldba/postgres-mcp", "--access-mode=restricted", "--transport=stdio"
+      ]
+    },
+    "dbtools": {
+      "command": "docker",
+      "args": [
+        "run", "-i", "--rm",
+        "--network", "stack-database-mcp_default",
+        "--env-file", "/Users/takis/Documents/sckool/stack-database-mcp/.env",
+        "-v", "/Users/takis/Documents/sckool/stack-database-mcp/tools.yaml:/tools.yaml:ro",
+        "us-central1-docker.pkg.dev/database-toolbox/toolbox/toolbox:latest",
+        "--stdio", "--config", "/tools.yaml"
+      ]
+    },
+    "mysql-mcp": {
+      "command": "docker",
+      "args": [
+        "run", "-i", "--rm",
+        "--network", "stack-database-mcp_default",
+        "--env-file", "/Users/takis/Documents/sckool/stack-database-mcp/.env",
+        "stack-database-mcp-mysql-mcp:local"
+      ]
+    },
+    "mssql-mcp": {
+      "command": "docker",
+      "args": [
+        "run", "-i", "--rm",
+        "--network", "stack-database-mcp_default",
+        "--env-file", "/Users/takis/Documents/sckool/stack-database-mcp/.env",
+        "stack-database-mcp-mssql-mcp:local"
+      ]
+    }
+  }
+}
