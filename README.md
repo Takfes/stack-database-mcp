@@ -64,7 +64,7 @@ docker exec stack-database-mcp-postgres-1 psql -U mcp_readonly -d appdb \
 - `query-customers` / `query-products` → return the seeded rows from Postgres and MySQL respectively, proving one server can front both engines off a single `tools.yaml`.
 - `insert-customer` / `delete-product` → both rejected with `isError: true` and the underlying DB error surfaced verbatim (`permission denied for table customers` / `DELETE command denied to user 'mcp_readonly'`). Unlike postgres-mcp, dbtools sets `isError` correctly — no quirk to work around here.
 - dbtools has no independent query-validation layer of its own (unlike postgres-mcp's restricted-mode validator) — enforcement here is entirely the `mcp_readonly` grant on each database. That's expected: dbtools' access model is "whatever SQL the tool author hardcoded, against whatever DB user is configured," not a general-purpose SQL gate.
-- `tools.yaml.example` also declares ad-hoc + schema-introspection tools for all three engines: `postgres-execute-sql`/`mysql-execute-sql`/`mssql-execute-sql` (run arbitrary SQL, not just the four hardcoded statements above) and `postgres-list-tables`/`postgres-list-schemas`/`mysql-list-tables`/`mssql-list-tables` (inspect schema without hand-writing SQL — MSSQL has no `list-schemas` equivalent in `genai-toolbox`, confirmed against source). This is a deliberate tradeoff, not an oversight: ad-hoc execute-sql tools are less safe than the fixed statements — they let a caller run any statement the `mcp_readonly` grant permits, rather than only the exact query the tool author wrote — so the same grant-level enforcement (read-only role) is the only thing standing between an ad-hoc call and a destructive one. Use the fixed-statement tools where the query is known ahead of time; reach for the ad-hoc tools only when the caller genuinely needs open-ended SQL.
+- `tools.yaml` also declares ad-hoc + schema-introspection tools for all three engines: `postgres-execute-sql`/`mysql-execute-sql`/`mssql-execute-sql` (run arbitrary SQL, not just the four hardcoded statements above) and `postgres-list-tables`/`postgres-list-schemas`/`mysql-list-tables`/`mssql-list-tables` (inspect schema without hand-writing SQL — MSSQL has no `list-schemas` equivalent in `genai-toolbox`, confirmed against source). This is a deliberate tradeoff, not an oversight: ad-hoc execute-sql tools are less safe than the fixed statements — they let a caller run any statement the `mcp_readonly` grant permits, rather than only the exact query the tool author wrote — so the same grant-level enforcement (read-only role) is the only thing standing between an ad-hoc call and a destructive one. Use the fixed-statement tools where the query is known ahead of time; reach for the ad-hoc tools only when the caller genuinely needs open-ended SQL.
 
 ## Dual-client verification
 
@@ -109,7 +109,13 @@ docker exec stack-database-mcp-mssql-1 /opt/mssql-tools18/bin/sqlcmd -S localhos
 
 ## Credentials
 
-Copy `.env.example` → `.env` and `tools.yaml.example` → `tools.yaml` if pointing a real MCP server at this stack. Both already match what's seeded here — no values to invent. `dbtools` in `.mcp.json` depends on `tools.yaml` existing locally (it's bind-mounted by absolute path); copy it before opening this project in Claude Code.
+`.env` is the single source of truth for every MCP server's credentials — no other file to check or keep in sync.
+
+- `.mcp.json`'s `pgquery` and `dbtools` entries both pass `--env-file .env` to `docker run`, so Docker injects `.env`'s variables straight into each container.
+- `pgquery` reads `DATABASE_URI` from its container's environment directly.
+- `dbtools` reads `tools.yaml`, where each source's `user`/`password` are `${VAR}` placeholders — `genai-toolbox` resolves these from its own environment natively.
+- `tools.yaml` is a real, tracked file (no `.example` copy step) — it's already correct as checked in.
+- All values here are throwaway, seeded fresh on every `docker compose up` (this is a disposable POC stack) — nothing to invent or protect.
 
 ## Tear down
 
