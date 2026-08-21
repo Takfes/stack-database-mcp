@@ -2,6 +2,17 @@
 
 Backlog items surfaced while building and verifying this stack. Not blocking — revisit each when relevant.
 
-- **Revisit the database MCP servers, starting with pgquery's Docker-only install.** `pgquery` (`crystaldba/postgres-mcp`) only runs via `docker run` in this stack's `.mcp.json` — `uvx postgres-mcp` fails with `ModuleNotFoundError: No module named 'mcp.server.fastmcp'` (confirmed real upstream bug, not a cache issue — reproduced with `uvx --refresh`, and re-reproduced 2026-08-21), and there's no `npm`/`npx` path at all (it's a Python package). Migrated from `indie-marketplace`'s NEXTME.md, where the finding was originally logged — that repo's `database` plugin ships the same Docker-only `pgquery` config as a result. Revisit periodically in both repos: watch upstream for the packaging fix, or accept Docker as a permanent prerequisite. Contrast: `dbtools` (`genai-toolbox`) is *not* Docker-only — it also ships standalone binaries (`curl` + `chmod +x`, no Docker) — so this limitation is `pgquery`-specific, not systemic to the stack.
+## pgquery is Docker-only
 
-- **`mysql-mcp`/`mssql-mcp` (the dedicated per-flavor servers) have no published image — locally-built, with upstream bugs worked around, not fixed.** Neither `benborla/mcp-server-mysql` nor `JexinSam/mssql_mcp_server` publishes a Docker image; `.mcp.json` points at `stack-database-mcp-mysql-mcp:local`/`stack-database-mcp-mssql-mcp:local`, built once by hand (see README's "Spin up" section) and not reproduced by `docker compose up`. Two real upstream issues found while building, both worked around locally rather than fixed upstream: `benborla`'s Dockerfile bakes in `ALLOW_INSERT_OPERATION=true`/`ALLOW_UPDATE_OPERATION=true` by default (contrary to its own README's documented safe default) — overridden explicitly in `.env`, verified live that the override takes effect; `JexinSam`'s Dockerfile never copies `README.md` into the build context even though `pyproject.toml`'s hatchling backend requires it at build time, so `pip install .` fails on a stock clone — built from a locally patched copy (one added `COPY README.md .` line) instead. Revisit if either project publishes a real image or fixes these upstream — the local build step and the patched Dockerfile could then be retired.
+- `crystaldba/postgres-mcp` only runs via `docker run` — `uvx postgres-mcp` fails with `ModuleNotFoundError: No module named 'mcp.server.fastmcp'` (confirmed real upstream bug, reproduced with `uvx --refresh`, re-reproduced 2026-08-21).
+- No `npm`/`npx` path either — it's a Python package.
+- Same finding logged in `indie-marketplace`'s NEXTME.md; that repo's `database` plugin ships the same Docker-only config as a result.
+- Contrast: `dbtools` (`genai-toolbox`) is *not* Docker-only — ships standalone binaries too. Limitation is `pgquery`-specific.
+- Revisit: watch upstream for the packaging fix, or accept Docker as permanent.
+
+## mysql-mcp / mssql-mcp have no published image
+
+- Neither `benborla/mcp-server-mysql` nor `JexinSam/mssql_mcp_server` publishes a Docker image — built locally by hand, not reproduced by `docker compose up`.
+- `benborla`'s Dockerfile bakes in `ALLOW_INSERT_OPERATION=true`/`ALLOW_UPDATE_OPERATION=true` by default, contrary to its own README — overridden in `.env`, verified live.
+- `JexinSam`'s Dockerfile never copies `README.md` into the build context, but the hatchling backend requires it — built from a locally patched clone (`COPY README.md .` added) instead.
+- Revisit if either project publishes a real image or fixes these upstream.

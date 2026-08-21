@@ -9,7 +9,7 @@ docker compose up -d
 docker ps -a --format '{{.Names}}: {{.Status}}'   # wait until all three show (healthy)
 ```
 
-Open this project in **Claude Code** or **VS Code** — five MCP servers are pre-wired, nothing else to configure:
+Open this project in **Claude Code** or **VS Code** — four MCP servers are pre-wired, nothing else to configure:
 
 | Server | Engine(s) | Covers |
 |---|---|---|
@@ -18,12 +18,14 @@ Open this project in **Claude Code** or **VS Code** — five MCP servers are pre
 | `mysql-mcp` | MySQL | dedicated, app-level write gate |
 | `mssql-mcp` | MSSQL | dedicated, regex-gated read-only tool |
 
-Ask the agent to run each of these through its MCP tools — all should return seeded rows (Ada Lovelace, Widget, Katherine Johnson):
+Ask the agent directly — copy-paste any of these as a prompt, in either client. All should return seeded rows (Ada Lovelace, Widget, Katherine Johnson):
 
-- `pgquery` → `SELECT * FROM customers;`
-- `dbtools` → `query-products` (MySQL) or `query-employees` (MSSQL)
-- `mysql-mcp` → `mysql_query` with `SELECT * FROM products;`
-- `mssql-mcp` → `query_sql` with `SELECT * FROM employees;`
+- `pgquery`: "Using the pgquery MCP tool, SELECT * FROM customers."
+- `dbtools`: "Using the dbtools MCP tool, list the products from the MySQL database."
+- `mysql-mcp`: "Using the mysql-mcp MCP tool, list the products in the database."
+- `mssql-mcp`: "Using the mssql-mcp MCP tool, list the employees in the database."
+
+For a longer copy-paste test script (introspection, joins, cross-server comparisons), see [`QUERIES.md`](./QUERIES.md).
 
 Then tear down:
 
@@ -39,6 +41,8 @@ The sections below cover the same ground in more depth, plus read-only-enforceme
 docker compose up -d
 docker ps -a --format '{{.Names}}: {{.Status}}'   # wait until all three show (healthy)
 ```
+
+MSSQL is the slowest of the three to come up. `dbtools` connects to all three databases eagerly at startup and **hard-fails with no retry** if any one isn't ready yet (`genai-toolbox` aborts on the first connection error, confirmed against source — there's no backoff/retry anywhere in it). Since `dbtools` isn't a `docker-compose.yml` service — it's launched fresh by the MCP client via `.mcp.json`, with no health-gating — starting it before MSSQL is healthy kills it outright. If `dbtools` fails to start: wait until all three containers show `healthy`, then reconnect the MCP server in your client.
 
 `mysql-mcp` and `mssql-mcp` (the dedicated per-flavor MCP servers in `.mcp.json`) have no published image — build them locally once, from each upstream's own Dockerfile:
 
@@ -121,21 +125,9 @@ Every server below connects as `mcp_readonly`. Confirmed working end-to-end via 
 
 ## Dual-client verification
 
-**Claude Code** — confirmed working through real `claude -p` CLI sessions (not just the protocol probes above), pointed at this project's own `.mcp.json`, scoped per-server via `--allowedTools mcp__<server>`:
-
-```bash
-docker compose up -d
-claude -p "Using the pgquery MCP tool, SELECT * FROM customers, then try an INSERT and report what happened." --allowedTools mcp__pgquery
-```
-
-All four servers confirmed working this way — see `scripts/smoke_test.py`'s Tier 3 for the automated version (one plain-English question per server, run live). One thing worth knowing: `claude -p` (one-shot mode) left the MCP servers' Docker containers running after the CLI process exited, rather than cleaning them up — not a correctness problem, but `docker ps` / `docker rm -f` afterward if you drive this project the same way.
-
-**VS Code** — two separate integration paths, both wired up in this repo:
-
-- **Agent Host** reads root `.mcp.json` directly — confirmed empirically (disabling `.mcp.json` disabled VS Code's available servers too). Works with zero extra config.
-- **Classic Copilot Chat "Agent Mode"** panel reads `.vscode/mcp.json` specifically (root key `servers`, not `mcpServers`) — added as a backward-compatible safety net, mirroring `.mcp.json`'s servers exactly.
-
-Actually driving a query through either VS Code path still needs a human at the keyboard (no VS Code automation available in this environment) — not verified end-to-end. If you want this closed out, open this project in VS Code and confirm the same queries from the TL;DR work.
+- **Claude Code** reads `.mcp.json` directly. Confirmed via live `claude -p` sessions scoped per-server (`--allowedTools mcp__<server>`) — see `scripts/smoke_test.py`'s Tier 3 for the automated version. Note: one-shot `claude -p` sessions leave the MCP servers' Docker containers running after exit — `docker ps` / `docker rm -f` if you drive this project the same way.
+- **VS Code** has two separate paths, both wired up here: **Agent Host** reads root `.mcp.json` directly (confirmed empirically — disabling `.mcp.json` disabled VS Code's servers too); the classic Copilot Chat **Agent Mode** panel reads `.vscode/mcp.json` specifically (root key `servers`, not `mcpServers`), added as a backward-compatible safety net mirroring `.mcp.json`.
+- Both clients manually confirmed working end-to-end against the TL;DR queries.
 
 ## Smoke test
 
@@ -150,7 +142,7 @@ docker compose up -d
 python3 scripts/smoke_test.py
 ```
 
-Expected output (21 checks, all `[PASS]`):
+Expected output (25 checks, all `[PASS]`):
 
 ```
 === Tier 1: DB health (Docker healthcheck, no MCP) ===
