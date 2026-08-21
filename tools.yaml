@@ -42,6 +42,12 @@ tools:
     description: List products from the seeded MySQL database.
     statement: SELECT * FROM products;
 
+  query-employees:
+    kind: mssql-sql
+    source: local-mssql
+    description: List employees from the seeded MSSQL database.
+    statement: SELECT * FROM employees;
+
   insert-customer:
     kind: postgres-sql
     source: local-postgres
